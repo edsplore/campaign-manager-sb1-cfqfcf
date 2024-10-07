@@ -186,15 +186,23 @@ export async function deleteCampaign(id: number): Promise<void> {
     const { error: contactsError } = await supabase
       .from('contacts')
       .delete()
-      .eq('campaignId', id);
+      .eq('campaignId', id)
 
     if (contactsError) throw contactsError;
 
-    // Then, delete the campaign
+    // Then, delete all call logs associated with the campaign
+    const { error: callLogsError } = await supabase
+      .from('call_logs')
+      .delete()
+      .eq('campaignId', id)
+
+    if (callLogsError) throw callLogsError;
+
+    // Finally, delete the campaign
     const { error: campaignError } = await supabase
       .from('campaigns')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
 
     if (campaignError) throw campaignError;
   } catch (error) {

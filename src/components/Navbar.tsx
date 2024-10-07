@@ -8,7 +8,7 @@ const Navbar: React.FC = () => {
       <div className="container mx-auto flex justify-between items-center">
         <Link to="/" className="flex items-center space-x-2 text-xl font-bold">
           <Phone size={24} />
-          <span>Campaign Manager</span>
+          <span>Call Wave</span>
         </Link>
         <div className="space-x-4">
           <Link to="/" className="hover:text-blue-200">Campaigns</Link>
