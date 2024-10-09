@@ -1,16 +1,11 @@
-// Import statements
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { X, BarChart2 } from 'lucide-react';
 import {
   getCampaign,
-  updateCampaign,
   getContacts,
-  updateContact,
-  addCallLog,
   getCallLogs,
-  updateCallLog,
   Campaign,
   Contact,
   CallLog,
@@ -22,11 +17,6 @@ interface ConcurrencyStatus {
   concurrency_limit: number;
 }
 
-interface CallResponse {
-  call_id: string;
-  call_status: string;
-}
-
 interface CallDetails {
   disconnection_reason: string;
   call_transcript: string;
@@ -35,7 +25,7 @@ interface CallDetails {
   start_time: string;
 }
 
-// Move ContactsPopup outside of BulkDialing
+// ContactsPopup component
 interface ContactsPopupProps {
   setShowContactsPopup: (value: boolean) => void;
   contacts: Contact[];
@@ -100,7 +90,6 @@ const ContactsPopup: React.FC<ContactsPopupProps> = ({
   );
 };
 
-// BulkDialing component
 const BulkDialing: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -117,6 +106,8 @@ const BulkDialing: React.FC = () => {
     useState<ConcurrencyStatus | null>(null);
   const [selectedCallLog, setSelectedCallLog] = useState<CallLog | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const getConcurrencyStatus = useCallback(
     async (retellApiKey: string): Promise<ConcurrencyStatus | null> => {
@@ -138,29 +129,40 @@ const BulkDialing: React.FC = () => {
     []
   );
 
-  useEffect(() => {
-    const loadCampaignData = async () => {
-      if (id) {
+  // Move stopPolling before startPolling to avoid the ReferenceError
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    setIsPolling(false);
+  }, []);
+
+  const startPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    setIsPolling(true);
+    pollingIntervalRef.current = setInterval(async () => {
+      if (campaign) {
         try {
-          const campaignData = await getCampaign(parseInt(id, 10));
-          if (campaignData) {
-            setCampaign(campaignData);
-            const contactsData = await getContacts(campaignData.id!);
-            setContacts(contactsData);
-            const callLogsData = await getCallLogs(campaignData.id!);
-            setCallLogs(callLogsData);
-            console.log(`Loaded campaign with ${contactsData.length} contacts`);
-          } else {
-            setError('Campaign not found');
+          const updatedCampaign = await getCampaign(campaign.id!);
+          if (updatedCampaign) {
+            setCampaign(updatedCampaign);
+            setProgress(updatedCampaign.progress);
+
+            if (updatedCampaign.status === 'Completed') {
+              setDialingStatus('completed');
+              stopPolling();
+            }
           }
-        } catch (err) {
-          setError('Error loading campaign data');
-          console.error('Error loading campaign data:', err);
+        } catch (error) {
+          console.error('Error fetching campaign progress:', error);
         }
       }
-    };
-    loadCampaignData();
-  }, [id]);
+    }, 2000); // Poll every 2 seconds
+  }, [campaign, stopPolling]);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -186,42 +188,13 @@ const BulkDialing: React.FC = () => {
     };
   }, [campaign, getConcurrencyStatus]);
 
-  const createPhoneCall = useCallback(
-    async (
-      fromNumber: string,
-      toNumber: string,
-      agentId: string,
-      firstName: string,
-      retellApiKey: string
-    ): Promise<CallResponse | null> => {
-      const data = {
-        from_number: fromNumber,
-        to_number: '+' + toNumber,
-        override_agent_id: agentId,
-        retell_llm_dynamic_variables: {
-          first_name: firstName,
-        },
-      };
-
-      try {
-        const response = await axios.post(
-          'https://api.retellai.com/v2/create-phone-call',
-          data,
-          {
-            headers: {
-              Authorization: `Bearer ${retellApiKey}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-        return response.data;
-      } catch (error) {
-        console.error('Error creating phone call:', error);
-        return null;
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
       }
-    },
-    []
-  );
+    };
+  }, []);
 
   const startBulkDialing = useCallback(async () => {
     if (!campaign || !contacts.length) return;
@@ -230,105 +203,76 @@ const BulkDialing: React.FC = () => {
       return;
     }
     setDialingStatus('dialing');
-    let calledCount = 0;
-    const totalContacts = contacts.length;
-    console.log(`Starting bulk dialing for ${totalContacts} contacts`);
+    console.log(`Starting bulk dialing for ${contacts.length} contacts`);
 
-    await updateCampaign(campaign.id!, { status: 'In Progress', hasRun: true });
+    try {
+      const response = await axios.post('https://backend-dialer-edsplore.replit.app/api/start-bulk-dialing', {
+        campaignId: campaign.id,
+      });
 
-    for (const contact of contacts) {
-      while (true) {
-        const concurrencyStatus = await getConcurrencyStatus(
-          campaign.retellApiKey
-        );
-        if (!concurrencyStatus) {
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-          continue;
-        }
+      if (response.data.success) {
+        startPolling(); // Start polling for progress updates
+      } else {
+        throw new Error(response.data.error || 'Bulk dialing failed');
+      }
+    } catch (error) {
+      console.error('Error during bulk dialing:', error);
+      setDialingStatus('idle');
+      alert('An error occurred during bulk dialing. Please try again.');
+    }
+  }, [campaign, contacts, startPolling]);
 
-        const { current_concurrency, concurrency_limit } = concurrencyStatus;
+  useEffect(() => {
+    const loadCampaignData = async () => {
+      if (id) {
+        try {
+          const campaignData = await getCampaign(parseInt(id, 10));
+          if (campaignData) {
+            setCampaign(campaignData);
+            setProgress(campaignData.progress);
+            const contactsData = await getContacts(campaignData.id!);
+            setContacts(contactsData);
+            const callLogsData = await getCallLogs(campaignData.id!);
+            setCallLogs(callLogsData);
+            console.log(`Loaded campaign with ${contactsData.length} contacts`);
 
-        if (current_concurrency < concurrency_limit) {
-          const callResponse = await createPhoneCall(
-            campaign.outboundNumber,
-            contact.phoneNumber,
-            campaign.agentId,
-            contact.firstName,
-            campaign.retellApiKey
-          );
-
-          if (callResponse) {
-            calledCount++;
-            const newProgress = Math.round((calledCount / totalContacts) * 100);
-            setProgress(newProgress);
-            await updateCampaign(campaign.id!, { progress: newProgress });
-            await updateContact(contact.id!, { callId: callResponse.call_id });
-            await addCallLog({
-              campaignId: campaign.id!,
-              phoneNumber: contact.phoneNumber,
-              firstName: contact.firstName,
-              callId: callResponse.call_id,
-            });
-            setCallLogs((prevLogs) => [
-              ...prevLogs,
-              {
-                id: Date.now(), // Temporary ID for rendering
-                campaignId: campaign.id!,
-                phoneNumber: contact.phoneNumber,
-                firstName: contact.firstName,
-                callId: callResponse.call_id,
-              },
-            ]);
-            console.log(
-              `Contact ${contact.firstName} called successfully (${calledCount}/${totalContacts})`
-            );
-            break;
+            // Start polling if the campaign is in progress
+            if (campaignData.status === 'In Progress') {
+              startPolling();
+            }
           } else {
-            await new Promise((resolve) => setTimeout(resolve, 5000));
+            setError('Campaign not found');
           }
-        } else {
-          await new Promise((resolve) => setTimeout(resolve, 5000));
+        } catch (err) {
+          setError('Error loading campaign data');
+          console.error('Error loading campaign data:', err);
         }
       }
-    }
+    };
+    loadCampaignData();
+  }, [id, startPolling]);
 
-    setDialingStatus('completed');
-    await updateCampaign(campaign.id!, { status: 'Completed', progress: 100 });
-  }, [campaign, contacts, getConcurrencyStatus, createPhoneCall]);
-
-  const analyzeCallLogs = async () => {
+  const analyzeCallLogs = useCallback(async () => {
     if (!campaign) return;
     setIsAnalyzing(true);
-    const logs = await getCallLogs(campaign.id!);
-    for (const log of logs) {
-      try {
-        const response = await axios.get(
-          `https://api.retellai.com/v2/get-call/${log.callId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${campaign.retellApiKey}`,
-            },
-          }
-        );
-        const callDetails: CallDetails = {
-          disconnection_reason: response.data.disconnection_reason || '',
-          call_transcript: response.data.transcript || '',
-          call_summary: response.data.call_analysis?.call_summary || '',
-          call_recording: response.data.recording_url || '',
-          start_time: new Date(response.data.start_timestamp).toISOString(),
-        };
-        await updateCallLog(log.id!, callDetails);
-      } catch (error) {
-        console.error(`Error analyzing call ${log.callId}:`, error);
+    try {
+      const response = await axios.post('https://backend-dialer-edsplore.replit.app/api/analyze-call-logs', {
+        campaignId: campaign.id,
+        retellApiKey: campaign.retellApiKey,
+      });
+
+      if (response.data.success) {
+        setCallLogs(response.data.callLogs);
+      } else {
+        throw new Error(response.data.error || 'Call log analysis failed');
       }
+    } catch (error) {
+      console.error('Error during call log analysis:', error);
+      alert('An error occurred during call log analysis. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
     }
-    setIsAnalyzing(false);
-    // Refresh call logs after analysis
-    if (campaign) {
-      const updatedLogs = await getCallLogs(campaign.id!);
-      setCallLogs(updatedLogs);
-    }
-  };
+  }, [campaign]);
 
   const handleCallLogClick = (log: CallLog) => {
     setSelectedCallLog(log);
@@ -342,7 +286,7 @@ const BulkDialing: React.FC = () => {
         <>
           <h2 className="text-xl font-semibold mb-2">{campaign.title}</h2>
           <p className="mb-4">{campaign.description}</p>
-          <p className="mb-2">Status: {dialingStatus}</p>
+          <p className="mb-2">Status: {campaign.status}</p>
           <p className="mb-2">Total Contacts: {contacts.length}</p>
           <div className="mb-4">
             <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
@@ -351,7 +295,9 @@ const BulkDialing: React.FC = () => {
                 style={{ width: `${progress}%` }}
               ></div>
             </div>
-            <p className="text-sm text-gray-600 mt-1">Progress: {progress}%</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Progress: {progress}%
+            </p>
           </div>
           {concurrencyStatus && (
             <div className="mb-4 p-4 bg-gray-100 rounded-lg">
