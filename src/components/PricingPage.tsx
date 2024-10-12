@@ -13,7 +13,7 @@ const PricingPage: React.FC = () => {
       return;
     }
 
-    const purchaseLink = `https://darwizpayment.edsplore.com/buy/36bdf86f-be25-4170-a5d1-14a702ac7351?checkout[custom][user_id]=${user.id}`;
+    const purchaseLink = `https://darwizpayment.edsplore.com/buy/628a4a2e-44f5-42f5-9565-489d58f52de4?checkout[custom][user_id]=${user.id}`;
     window.open(purchaseLink, '_blank');
   };
 
