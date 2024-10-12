@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { addCampaign, addContacts, Campaign, Contact } from '../utils/db';
+import { supabase } from '../utils/supabaseClient';
 
 const CampaignCreation: React.FC = () => {
   const [title, setTitle] = useState('');
@@ -12,7 +13,18 @@ const CampaignCreation: React.FC = () => {
   const [contacts, setContacts] = useState<
     Omit<Contact, 'id' | 'campaignId'>[]
   >([]);
+  const [user, setUser] = useState<any>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+  }, []);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -40,6 +52,12 @@ const CampaignCreation: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      alert('You must be logged in to create a campaign');
+      navigate('/auth');
+      return;
+    }
+
     const campaign: Omit<Campaign, 'id'> = {
       title,
       description,
@@ -49,6 +67,7 @@ const CampaignCreation: React.FC = () => {
       status: 'Scheduled',
       progress: 0,
       hasRun: false,
+      userId: user.id,
     };
 
     try {
@@ -63,6 +82,10 @@ const CampaignCreation: React.FC = () => {
       alert('Failed to create campaign. Please try again.');
     }
   };
+
+  if (!user) {
+    return <div>Please log in to create a campaign.</div>;
+  }
 
   return (
     <div className="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-md">

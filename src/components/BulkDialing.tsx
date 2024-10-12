@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
-import { X, BarChart2 } from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import { X, BarChart2 } from 'lucide-react';
 import {
   getCampaign,
   getContacts,
@@ -9,7 +9,7 @@ import {
   Campaign,
   Contact,
   CallLog,
-} from "../utils/db";
+} from '../utils/db';
 
 // Interface definitions
 interface ConcurrencyStatus {
@@ -48,9 +48,9 @@ const ContactsPopup: React.FC<ContactsPopupProps> = ({
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [setShowContactsPopup]);
 
@@ -96,8 +96,8 @@ const BulkDialing: React.FC = () => {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [dialingStatus, setDialingStatus] = useState<
-    "idle" | "dialing" | "paused" | "completed"
-  >("idle");
+    'idle' | 'dialing' | 'paused' | 'completed'
+  >('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [callLogs, setCallLogs] = useState<CallLog[]>([]);
@@ -113,20 +113,20 @@ const BulkDialing: React.FC = () => {
     async (retellApiKey: string): Promise<ConcurrencyStatus | null> => {
       try {
         const response = await axios.get(
-          "https://api.retellai.com/get-concurrency",
+          'https://api.retellai.com/get-concurrency',
           {
             headers: {
               Authorization: `Bearer ${retellApiKey}`,
             },
-          },
+          }
         );
         return response.data;
       } catch (error) {
-        console.error("Error fetching concurrency status:", error);
+        console.error('Error fetching concurrency status:', error);
         return null;
       }
     },
-    [],
+    []
   );
 
   const stopPolling = useCallback(() => {
@@ -151,13 +151,13 @@ const BulkDialing: React.FC = () => {
             setCampaign(updatedCampaign);
             setProgress(updatedCampaign.progress);
 
-            if (updatedCampaign.status === "Completed") {
-              setDialingStatus("completed");
+            if (updatedCampaign.status === 'Completed') {
+              setDialingStatus('completed');
               stopPolling();
             }
           }
         } catch (error) {
-          console.error("Error fetching campaign progress:", error);
+          console.error('Error fetching campaign progress:', error);
         }
       }
     }, 2000); // Poll every 2 seconds
@@ -197,64 +197,64 @@ const BulkDialing: React.FC = () => {
 
   const startBulkDialing = useCallback(async () => {
     if (!campaign || !contacts.length) return;
-    if (campaign.hasRun && campaign.status === "Completed") {
-      alert("This campaign has already been run and cannot be run again.");
+    if (campaign.hasRun && campaign.status === 'Completed') {
+      alert('This campaign has already been run and cannot be run again.');
       return;
     }
-    setDialingStatus("dialing");
+    setDialingStatus('dialing');
     console.log(`Starting bulk dialing for ${contacts.length} contacts`);
 
     try {
       const response = await axios.post(
-        "https://backend-dialer-edsplore.replit.app/api/start-bulk-dialing",
+        'https://dev-backend-dialer-edsplore.replit.app/api/start-bulk-dialing',
         {
           campaignId: campaign.id,
-        },
+        }
       );
 
       if (response.data.success) {
         startPolling(); // Start polling for progress updates
       } else {
-        throw new Error(response.data.error || "Bulk dialing failed");
+        throw new Error(response.data.error || 'Bulk dialing failed');
       }
     } catch (error) {
-      console.error("Error during bulk dialing:", error);
-      setDialingStatus("idle");
-      alert("An error occurred during bulk dialing. Please try again.");
+      console.error('Error during bulk dialing:', error);
+      setDialingStatus('idle');
+      alert('An error occurred during bulk dialing. Please try again.');
     }
   }, [campaign, contacts, startPolling]);
 
   const pauseOrResumeCampaign = useCallback(async () => {
     if (!campaign) return;
 
-    const newStatus = campaign.status === "Paused" ? "In Progress" : "Paused";
+    const newStatus = campaign.status === 'Paused' ? 'In Progress' : 'Paused';
 
     try {
       const response = await axios.post(
-        "https://backend-dialer-edsplore.replit.app/api/update-campaign-status",
+        'https://dev-backend-dialer-edsplore.replit.app/api/update-campaign-status',
         {
           campaignId: campaign.id,
           status: newStatus,
-        },
+        }
       );
 
       if (response.data.success) {
         setCampaign((prevCampaign) =>
-          prevCampaign ? { ...prevCampaign, status: newStatus } : prevCampaign,
+          prevCampaign ? { ...prevCampaign, status: newStatus } : prevCampaign
         );
-        if (newStatus === "Paused") {
-          setDialingStatus("paused");
+        if (newStatus === 'Paused') {
+          setDialingStatus('paused');
         } else {
-          setDialingStatus("dialing");
+          setDialingStatus('dialing');
         }
       } else {
         throw new Error(
-          response.data.error || "Failed to update campaign status",
+          response.data.error || 'Failed to update campaign status'
         );
       }
     } catch (error) {
-      console.error("Error updating campaign status:", error);
-      alert("An error occurred while updating the campaign status.");
+      console.error('Error updating campaign status:', error);
+      alert('An error occurred while updating the campaign status.');
     }
   }, [campaign]);
 
@@ -273,21 +273,21 @@ const BulkDialing: React.FC = () => {
             console.log(`Loaded campaign with ${contactsData.length} contacts`);
 
             // Start polling if the campaign is in progress
-            if (campaignData.status === "In Progress") {
-              setDialingStatus("dialing");
+            if (campaignData.status === 'In Progress') {
+              setDialingStatus('dialing');
               startPolling();
-            } else if (campaignData.status === "Paused") {
-              setDialingStatus("paused");
+            } else if (campaignData.status === 'Paused') {
+              setDialingStatus('paused');
               startPolling();
-            } else if (campaignData.status === "Completed") {
-              setDialingStatus("completed");
+            } else if (campaignData.status === 'Completed') {
+              setDialingStatus('completed');
             }
           } else {
-            setError("Campaign not found");
+            setError('Campaign not found');
           }
         } catch (err) {
-          setError("Error loading campaign data");
-          console.error("Error loading campaign data:", err);
+          setError('Error loading campaign data');
+          console.error('Error loading campaign data:', err);
         }
       }
     };
@@ -299,21 +299,21 @@ const BulkDialing: React.FC = () => {
     setIsAnalyzing(true);
     try {
       const response = await axios.post(
-        "https://backend-dialer-edsplore.replit.app/api/analyze-call-logs",
+        'https://dev-backend-dialer-edsplore.replit.app/api/analyze-call-logs',
         {
           campaignId: campaign.id,
           retellApiKey: campaign.retellApiKey,
-        },
+        }
       );
 
       if (response.data.success) {
         setCallLogs(response.data.callLogs);
       } else {
-        throw new Error(response.data.error || "Call log analysis failed");
+        throw new Error(response.data.error || 'Call log analysis failed');
       }
     } catch (error) {
-      console.error("Error during call log analysis:", error);
-      alert("An error occurred during call log analysis. Please try again.");
+      console.error('Error during call log analysis:', error);
+      alert('An error occurred during call log analysis. Please try again.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -352,7 +352,7 @@ const BulkDialing: React.FC = () => {
             </div>
           )}
           <div className="flex space-x-4 mb-4">
-            {dialingStatus === "idle" && !campaign.hasRun && (
+            {dialingStatus === 'idle' && !campaign.hasRun && (
               <button
                 onClick={startBulkDialing}
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
@@ -360,12 +360,12 @@ const BulkDialing: React.FC = () => {
                 Start Bulk Dialing
               </button>
             )}
-            {(dialingStatus === "dialing" || dialingStatus === "paused") && (
+            {(dialingStatus === 'dialing' || dialingStatus === 'paused') && (
               <button
                 onClick={pauseOrResumeCampaign}
                 className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded"
               >
-                {dialingStatus === "paused" ? "Resume" : "Pause"}
+                {dialingStatus === 'paused' ? 'Resume' : 'Pause'}
               </button>
             )}
             <button
@@ -375,7 +375,7 @@ const BulkDialing: React.FC = () => {
               View Contacts
             </button>
           </div>
-          {campaign.hasRun && campaign.status === "Completed" && (
+          {campaign.hasRun && campaign.status === 'Completed' && (
             <p className="text-yellow-600 mb-4">
               This campaign has already been run and cannot be run again.
             </p>
@@ -389,7 +389,7 @@ const BulkDialing: React.FC = () => {
               className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded flex items-center"
             >
               <BarChart2 size={20} className="mr-2" />
-              {isAnalyzing ? "Analyzing..." : "Analyze Calls"}
+              {isAnalyzing ? 'Analyzing...' : 'Analyze Calls'}
             </button>
           </div>
           <div className="overflow-x-auto max-h-96 overflow-y-auto">
@@ -407,7 +407,7 @@ const BulkDialing: React.FC = () => {
                   <tr
                     key={log.id || index}
                     className={`${
-                      index % 2 === 0 ? "bg-gray-100" : "bg-white"
+                      index % 2 === 0 ? 'bg-gray-100' : 'bg-white'
                     } cursor-pointer hover:bg-gray-200`}
                     onClick={() => handleCallLogClick(log)}
                   >
@@ -415,7 +415,7 @@ const BulkDialing: React.FC = () => {
                     <td className="border px-4 py-2">{log.firstName}</td>
                     <td className="border px-4 py-2">{log.callId}</td>
                     <td className="border px-4 py-2">
-                      {log.disconnection_reason || "N/A"}
+                      {log.disconnection_reason || 'N/A'}
                     </td>
                   </tr>
                 ))}
@@ -442,22 +442,22 @@ const BulkDialing: React.FC = () => {
                   <strong>Call ID:</strong> {selectedCallLog.callId}
                 </p>
                 <p>
-                  <strong>Disconnection Reason:</strong>{" "}
-                  {selectedCallLog.disconnection_reason || "N/A"}
+                  <strong>Disconnection Reason:</strong>{' '}
+                  {selectedCallLog.disconnection_reason || 'N/A'}
                 </p>
                 <p>
-                  <strong>Start Time:</strong>{" "}
-                  {selectedCallLog.start_time || "N/A"}
+                  <strong>Start Time:</strong>{' '}
+                  {selectedCallLog.start_time || 'N/A'}
                 </p>
                 <h3 className="text-xl font-semibold mt-4 mb-2">
                   Call Summary
                 </h3>
-                <p>{selectedCallLog.call_summary || "No summary available"}</p>
+                <p>{selectedCallLog.call_summary || 'No summary available'}</p>
                 <h3 className="text-xl font-semibold mt-4 mb-2">
                   Call Transcript
                 </h3>
                 <pre className="whitespace-pre-wrap bg-gray-100 p-4 rounded">
-                  {selectedCallLog.call_transcript || "No transcript available"}
+                  {selectedCallLog.call_transcript || 'No transcript available'}
                 </pre>
                 {selectedCallLog.call_recording && (
                   <div className="mt-4">

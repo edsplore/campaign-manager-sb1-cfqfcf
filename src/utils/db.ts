@@ -18,6 +18,7 @@ export interface Campaign {
   status: 'Scheduled' | 'In Progress' | 'Completed';
   progress: number;
   hasRun: boolean;
+  userId: string; // Add this line
 }
 
 export interface CallLog {
@@ -53,22 +54,15 @@ export async function addCampaign(
   }
 }
 
-export async function addContacts(
-  contacts: Omit<Contact, 'id'>[]
-): Promise<void> {
-  try {
-    const { error } = await supabase.from('contacts').insert(contacts);
-
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error adding contacts:', error);
-    throw error;
-  }
-}
-
 export async function getCampaigns(): Promise<Campaign[]> {
   try {
-    const { data, error } = await supabase.from('campaigns').select('*');
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+
+    const { data, error } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('userId', userData.user.id);
 
     if (error) throw error;
     if (!data) return [];
@@ -82,16 +76,33 @@ export async function getCampaigns(): Promise<Campaign[]> {
 
 export async function getCampaign(id: number): Promise<Campaign | null> {
   try {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
+
     const { data, error } = await supabase
       .from('campaigns')
       .select('*')
       .eq('id', id)
+      .eq('userId', userData.user.id)
       .single();
 
     if (error) throw error;
     return data;
   } catch (error) {
     console.error('Error fetching campaign:', error);
+    throw error;
+  }
+}
+
+export async function addContacts(
+  contacts: Omit<Contact, 'id'>[]
+): Promise<void> {
+  try {
+    const { error } = await supabase.from('contacts').insert(contacts);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error adding contacts:', error);
     throw error;
   }
 }
@@ -186,7 +197,7 @@ export async function deleteCampaign(id: number): Promise<void> {
     const { error: contactsError } = await supabase
       .from('contacts')
       .delete()
-      .eq('campaignId', id)
+      .eq('campaignId', id);
 
     if (contactsError) throw contactsError;
 
@@ -194,7 +205,7 @@ export async function deleteCampaign(id: number): Promise<void> {
     const { error: callLogsError } = await supabase
       .from('call_logs')
       .delete()
-      .eq('campaignId', id)
+      .eq('campaignId', id);
 
     if (callLogsError) throw callLogsError;
 
@@ -202,7 +213,7 @@ export async function deleteCampaign(id: number): Promise<void> {
     const { error: campaignError } = await supabase
       .from('campaigns')
       .delete()
-      .eq('id', id)
+      .eq('id', id);
 
     if (campaignError) throw campaignError;
   } catch (error) {
