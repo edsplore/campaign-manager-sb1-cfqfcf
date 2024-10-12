@@ -6,10 +6,12 @@ import {
   getCampaign,
   getContacts,
   getCallLogs,
+  getUserDialingCredits,
   Campaign,
   Contact,
   CallLog,
 } from '../utils/db';
+import { supabase } from '../utils/supabaseClient';
 
 // Interface definitions
 interface ConcurrencyStatus {
@@ -108,7 +110,10 @@ const BulkDialing: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
+  const [userCredits, setUserCredits] = useState<number | null>(null);
+  const [purchaseLink, setPurchaseLink] = useState<string | null>(null);
+  
+  
   const getConcurrencyStatus = useCallback(
     async (retellApiKey: string): Promise<ConcurrencyStatus | null> => {
       try {
@@ -205,10 +210,16 @@ const BulkDialing: React.FC = () => {
     console.log(`Starting bulk dialing for ${contacts.length} contacts`);
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const response = await axios.post(
         'https://dev-backend-dialer-edsplore.replit.app/api/start-bulk-dialing',
         {
           campaignId: campaign.id,
+          userId: user.id,
         }
       );
 
@@ -220,10 +231,27 @@ const BulkDialing: React.FC = () => {
     } catch (error) {
       console.error('Error during bulk dialing:', error);
       setDialingStatus('idle');
-      alert('An error occurred during bulk dialing. Please try again.');
+      if (error.response && error.response.status === 402) {
+        setPurchaseLink(error.response.data.purchaseLink);
+        // alert('Insufficient dialing credits. Please purchase more credits to continue.');
+      } else {
+        alert('An error occurred during bulk dialing. Please try again.');
+      }
     }
   }, [campaign, contacts, startPolling]);
 
+  useEffect(() => {
+    const fetchUserCredits = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const credits = await getUserDialingCredits(user.id);
+        setUserCredits(credits);
+      }
+    };
+
+    fetchUserCredits();
+  }, []);
+  
   const pauseOrResumeCampaign = useCallback(async () => {
     if (!campaign) return;
 
@@ -272,15 +300,29 @@ const BulkDialing: React.FC = () => {
             setCallLogs(callLogsData);
             console.log(`Loaded campaign with ${contactsData.length} contacts`);
 
+            const { data: { user } } = await supabase.auth.getUser();
+            
             // Start polling if the campaign is in progress
             if (campaignData.status === 'In Progress') {
               setDialingStatus('dialing');
-              startPolling();
+              startPolling();              
+              if (user) {
+                const credits = await getUserDialingCredits(user.id);
+                setUserCredits(credits);
+              }
             } else if (campaignData.status === 'Paused') {
               setDialingStatus('paused');
               startPolling();
+              if (user) {
+                const credits = await getUserDialingCredits(user.id);
+                setUserCredits(credits);
+              }
             } else if (campaignData.status === 'Completed') {
               setDialingStatus('completed');
+              if (user) {
+                const credits = await getUserDialingCredits(user.id);
+                setUserCredits(credits);
+              }
             }
           } else {
             setError('Campaign not found');
@@ -351,6 +393,7 @@ const BulkDialing: React.FC = () => {
               <p>Concurrency Limit: {concurrencyStatus.concurrency_limit}</p>
             </div>
           )}
+          <p className="mb-2">Available Credits: {userCredits !== null ? userCredits : 'Loading...'}</p>
           <div className="flex space-x-4 mb-4">
             {dialingStatus === 'idle' && !campaign.hasRun && (
               <button
@@ -375,6 +418,19 @@ const BulkDialing: React.FC = () => {
               View Contacts
             </button>
           </div>
+          {purchaseLink && (
+            <div className="mb-4">
+              <p className="text-red-500">Insufficient credits. Please purchase more to continue.</p>
+              <a
+                href={purchaseLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded inline-block mt-2"
+              >
+                Purchase Credits
+              </a>
+            </div>
+          )}
           {campaign.hasRun && campaign.status === 'Completed' && (
             <p className="text-yellow-600 mb-4">
               This campaign has already been run and cannot be run again.

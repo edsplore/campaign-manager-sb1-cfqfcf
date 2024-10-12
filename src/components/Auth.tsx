@@ -13,13 +13,28 @@ export default function Auth() {
     try {
       setLoading(true);
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        // Step 1: Sign up the user
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
         });
         if (error) throw error;
-        // alert('Check your email for the login link!')
+
+        const userId = data?.user?.id; // Get the userId of the newly signed-up user
+        const userEmail = data?.user?.email; // Get the email of the newly signed-up user
+
+        if (userId && userEmail) {
+          // Step 2: Insert a new row in user_dialing_credits table for the new user
+          const { error: insertError } = await supabase
+            .from('user_dialing_credits')
+            .insert([{ userId, dialing_credits: 200, email: userEmail }]); // Add email along with userId and dialing credits
+
+          if (insertError) throw insertError; // Handle error if the insert fails
+        }
+
+        // alert('Sign-up successful! Check your email for confirmation.');
       } else {
+        // Step 3: Log in the user
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -32,6 +47,7 @@ export default function Auth() {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="flex justify-center items-center h-screen bg-gray-100">

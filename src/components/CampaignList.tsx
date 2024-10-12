@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Phone, Users, Trash2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Phone, Users, Trash2, Plus, BarChart2 } from 'lucide-react';
 import { getCampaigns, deleteCampaign, Campaign } from '../utils/db';
 
 const CampaignList: React.FC = () => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const fetchCampaigns = async () => {
     try {
@@ -24,11 +25,12 @@ const CampaignList: React.FC = () => {
     fetchCampaigns();
   }, []);
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (event: React.MouseEvent, id: number) => {
+    event.stopPropagation();
     if (window.confirm('Are you sure you want to delete this campaign?')) {
       try {
         await deleteCampaign(id);
-        await fetchCampaigns(); // Refresh the list after deletion
+        await fetchCampaigns();
       } catch (err) {
         console.error('Error deleting campaign:', err);
         setError('Failed to delete campaign. Please try again.');
@@ -36,77 +38,104 @@ const CampaignList: React.FC = () => {
     }
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Completed':
+        return 'bg-gradient-to-r from-green-400 to-green-600';
+      case 'In Progress':
+        return 'bg-gradient-to-r from-yellow-400 to-yellow-600';
+      default:
+        return 'bg-gradient-to-r from-blue-400 to-blue-600';
+    }
+  };
+
   if (loading) {
-    return <p className="text-center">Loading campaigns...</p>;
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
   }
 
   if (error) {
-    return <p className="text-center text-red-500">{error}</p>;
+    return (
+      <div className="text-center text-red-500 bg-red-100 p-4 rounded-lg shadow-md">
+        <p className="font-semibold">{error}</p>
+        <button
+          onClick={fetchCampaigns}
+          className="mt-4 bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-300"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Your Campaigns</h1>
+    <div className="max-w-6xl mx-auto px-4 py-8 ml-16">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-800">Your Campaigns</h1>
+        <Link
+          to="/create"
+          className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-2 rounded-md hover:from-blue-600 hover:to-indigo-700 transition duration-300 flex items-center"
+        >
+          <Plus size={20} className="mr-2" />
+          Create Campaign
+        </Link>
+      </div>
       {campaigns.length === 0 ? (
-        <p className="text-center text-gray-500">
-          No campaigns found. Create a new campaign to get started!
-        </p>
+        <div className="bg-white shadow-md rounded-lg p-8 text-center">
+          <p className="text-xl text-gray-600 mb-4">No campaigns found. Create a new campaign to get started!</p>
+          <Link
+            to="/create"
+            className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-md hover:from-blue-600 hover:to-indigo-700 transition duration-300 inline-flex items-center"
+          >
+            <Plus size={24} className="mr-2" />
+            Create Your First Campaign
+          </Link>
+        </div>
       ) : (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-          <ul className="divide-y divide-gray-200">
-            {campaigns.map((campaign) => (
-              <li key={campaign.id} className="relative">
-                <Link
-                  to={`/campaign/${campaign.id}`}
-                  className="block hover:bg-gray-50"
-                >
-                  <div className="px-4 py-4 sm:px-6">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-blue-600 truncate">
-                        {campaign.title}
-                      </p>
-                      <div className="ml-2 flex-shrink-0 flex">
-                        <p
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            campaign.status === 'Completed'
-                              ? 'bg-green-100 text-green-800'
-                              : campaign.status === 'In Progress'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}
-                        >
-                          {campaign.status}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-2 sm:flex sm:justify-between">
-                      <div className="sm:flex">
-                        <p className="flex items-center text-sm text-gray-500">
-                          <Users className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                          Contacts
-                        </p>
-                      </div>
-                      <div className="mt-2 flex items-center text-sm text-gray-500 sm:mt-0">
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleDelete(campaign.id!);
-                          }}
-                          className="mr-4 p-1 text-red-600 hover:text-red-800"
-                          title="Delete Campaign"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                        <Phone className="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" />
-                        <p>View Details</p>
-                      </div>
-                    </div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {campaigns.map((campaign) => (
+            <div
+              key={campaign.id}
+              onClick={() => navigate(`/campaign/${campaign.id}`)}
+              className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition duration-300 cursor-pointer"
+            >
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <h2 className="text-xl font-semibold text-gray-800 truncate">{campaign.title}</h2>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${getStatusColor(campaign.status)}`}>
+                    {campaign.status}
+                  </span>
+                </div>
+                <p className="text-gray-600 mb-4 h-12 overflow-hidden">{campaign.description}</p>
+                <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div className="flex items-center">
+                    <Users className="w-4 h-4 mr-1" />
+                    <span>Contacts</span>
                   </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  <div className="flex items-center">
+                    <BarChart2 className="w-4 h-4 mr-1" />
+                    <span>{campaign.progress}% Complete</span>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-6 py-4 flex justify-between items-center">
+                <div className="text-blue-600 hover:text-blue-800 font-medium flex items-center">
+                  <Phone className="w-4 h-4 mr-1" />
+                  View Details
+                </div>
+                <button
+                  onClick={(e) => handleDelete(e, campaign.id!)}
+                  className="text-red-600 hover:text-red-800 flex items-center"
+                  title="Delete Campaign"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

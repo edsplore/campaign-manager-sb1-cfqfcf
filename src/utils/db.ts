@@ -238,3 +238,35 @@ export async function updateCallLog(
     throw error;
   }
 }
+
+export async function getUserDialingCredits(userId: string): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('user_dialing_credits')
+      .select('dialing_credits')
+      .eq('userId', userId)  // Querying by userId
+      .single();
+
+    if (error) throw error;
+    return data?.dialing_credits || 0;  // Return 0 if no data is found
+  } catch (error) {
+    console.error('Error fetching user dialing credits:', error);
+    throw error;
+  }
+}
+
+export async function updateUserDialingCredits(userId: string, credits: number): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('user_dialing_credits')
+      .upsert({
+        userId: userId,           // Set userId
+        dialing_credits: credits  // Set the new dialing credits value
+      });
+
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error updating user dialing credits:', error);
+    throw error;
+  }
+}

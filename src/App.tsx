@@ -6,6 +6,8 @@ import CampaignCreation from './components/CampaignCreation'
 import CampaignList from './components/CampaignList'
 import BulkDialing from './components/BulkDialing'
 import Auth from './components/Auth'
+import PricingPage from './components/PricingPage'
+import LandingPage from './components/LandingPage'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -22,12 +24,22 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-gray-100">
+      <div className="min-h-screen bg-gray-100 flex">
         {session && <Navbar />}
-        <div className="container mx-auto px-4 py-8">
+        <div className={`flex-grow ${session ? 'ml-16' : ''} transition-all duration-300`}>
           <Routes>
             <Route
               path="/"
+              element={
+                session ? (
+                  <Navigate to="/campaigns" replace />
+                ) : (
+                  <LandingPage />
+                )
+              }
+            />
+            <Route
+              path="/campaigns"
               element={
                 session ? (
                   <CampaignList />
@@ -57,12 +69,22 @@ function App() {
               }
             />
             <Route
+              path="/pricing"
+              element={
+                session ? (
+                  <PricingPage />
+                ) : (
+                  <Navigate to="/auth" replace />
+                )
+              }
+            />
+            <Route
               path="/auth"
               element={
                 !session ? (
                   <Auth />
                 ) : (
-                  <Navigate to="/" replace />
+                  <Navigate to="/campaigns" replace />
                 )
               }
             />

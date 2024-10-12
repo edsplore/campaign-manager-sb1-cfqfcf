@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import * as XLSX from 'xlsx';
-import { addCampaign, addContacts, Campaign, Contact } from '../utils/db';
-import { supabase } from '../utils/supabaseClient';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
+import { addCampaign, addContacts, Campaign, Contact } from "../utils/db";
+import { supabase } from "../utils/supabaseClient";
 
 const CampaignCreation: React.FC = () => {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [agentId, setAgentId] = useState('');
-  const [retellApiKey, setRetellApiKey] = useState('');
-  const [outboundNumber, setOutboundNumber] = useState('');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [agentId, setAgentId] = useState("");
+  const [retellApiKey, setRetellApiKey] = useState("");
+  const [outboundNumber, setOutboundNumber] = useState("");
   const [contacts, setContacts] = useState<
-    Omit<Contact, 'id' | 'campaignId'>[]
+    Omit<Contact, "id" | "campaignId">[]
   >([]);
   const [user, setUser] = useState<any>(null);
   const navigate = useNavigate();
@@ -32,11 +32,11 @@ const CampaignCreation: React.FC = () => {
       const reader = new FileReader();
       reader.onload = (evt) => {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wb = XLSX.read(bstr, { type: "binary" });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        const parsedContacts: Omit<Contact, 'id' | 'campaignId'>[] = data
+        const parsedContacts: Omit<Contact, "id" | "campaignId">[] = data
           .slice(1)
           .map((row: any) => ({
             phoneNumber: row[0],
@@ -53,18 +53,18 @@ const CampaignCreation: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      alert('You must be logged in to create a campaign');
-      navigate('/auth');
+      alert("You must be logged in to create a campaign");
+      navigate("/auth");
       return;
     }
 
-    const campaign: Omit<Campaign, 'id'> = {
+    const campaign: Omit<Campaign, "id"> = {
       title,
       description,
       agentId,
       retellApiKey,
       outboundNumber,
-      status: 'Scheduled',
+      status: "Scheduled",
       progress: 0,
       hasRun: false,
       userId: user.id,
@@ -73,13 +73,13 @@ const CampaignCreation: React.FC = () => {
     try {
       const campaignId = await addCampaign(campaign);
       await addContacts(
-        contacts.map((contact) => ({ ...contact, campaignId }))
+        contacts.map((contact) => ({ ...contact, campaignId })),
       );
       alert(`Campaign created successfully with ${contacts.length} contacts!`);
       navigate(`/campaign/${campaignId}`);
     } catch (error) {
-      console.error('Error creating campaign:', error);
-      alert('Failed to create campaign. Please try again.');
+      console.error("Error creating campaign:", error);
+      alert("Failed to create campaign. Please try again.");
     }
   };
 
